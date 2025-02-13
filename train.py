@@ -198,7 +198,7 @@ def main(cfg: DictConfig):
             train_dataset,
             batch_size=cfg.training.batch_size_per_gpu,
             num_workers=cfg.training.num_workers,
-            pin_memory=True,
+            pin_memory=False,
             persistent_workers=True,
             prefetch_factor=2,
             shuffle=True,

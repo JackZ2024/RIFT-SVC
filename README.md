@@ -72,11 +72,16 @@ python scripts/resample_normalize_audios.py --src data/finetune
 or do it manually for the settings you want.
 
 To extract features, run:
+Linux:
 ```bash
 bash prepare.sh data/finetune 1
 ```
 where `1` is the number of workers per device. You can adjust this value based on your GPU memory (like 4 for 3090).
 
+Window:
+```bash
+prepare.bat
+```
 
 ## Training
 
@@ -90,7 +95,7 @@ You can find the training logs in the wandb dashboard. See [wandb](https://wandb
 
 Run the following command to start fine-tuning:
 ```bash
-python train.py --config-name finetune model=dit-768-12 training.wandb_run_name=finetune_ckpt-v2_dit-768-12_30000steps-lr0.00005 training.learning_rate=5e-5 +model.lognorm=true training.max_steps=30000 training.weight_decay=0.01 training.batch_size_per_gpu=64 training.save_per_steps=1000 training.test_per_steps=1000 +model.pretrained_path=pretrained/pretrain-v2-final_dit-768-12_300000steps-lr0.0003.ckpt +model.whisper_drop_prob=0.2 training.eval_cfg_strength=2.0
+python train.py --config-name finetune model=dit-768-12 training.wandb_run_name=finetune_ckpt-v2_dit-768-12_100000steps-lr0.00005 training.learning_rate=5e-5 +model.lognorm=true training.max_steps=100000 training.weight_decay=0.01 training.batch_size_per_gpu=32 training.save_per_steps=1000 training.test_per_steps=1000 +model.pretrained_path=pretrained/pretrain-v2-final_dit-768-12_300000steps-lr0.0003.ckpt +model.whisper_drop_prob=0.2 training.eval_cfg_strength=2.0 training.save_weights_only=False
 ```
 
 **Arguments:**
@@ -111,15 +116,10 @@ python train.py --config-name finetune model=dit-768-12 training.wandb_run_name=
 
 Since we use hydra to manage the config, you can also override the config file by adding your own arguments.
 
-The above settings are tested on one 3090 GPU, consuming ~20GB VRAM.
+The above settings are tested on one 4080S GPU, consuming ~14.3GB VRAM.
 
 ### Resume from checkpoint
-If you expect to resume training from a checkpoint, you can add the following argument:
-```bash
-[other arguments] +training.save_weights_only=False
-```
-
-Then, you can resume training from a checkpoint later by adding the following argument:
+You can resume training from a checkpoint later by adding the following argument:
 ```bash
 [other arguments] +training.resume_from_checkpoint=/path/to/checkpoint.ckpt +training.wandb_resume_id=your_wandb_run_id
 ```
