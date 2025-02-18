@@ -126,9 +126,14 @@ You can resume training from a checkpoint later by adding the following argument
 
 ## Inference
 
-#### 9. Inference
+#### 9.1 Reduce Model (Keep only necessary parameters)
 ```bash
-python infer.py --model ckpts/finetune_ckpt-v2_dit-768-12_30000steps-lr0.00005/model-step=24000.ckpt --input 0.wav --output 0_steps32_cfg0.wav --speaker speaker1 --infer-steps 32 --cfg-strength 2.0
+python reduce_model.py --model ckpts/finetune_ckpt-v2_dit-768-12_30000steps-lr0.00005/model-step=24000.ckpt
+```
+
+#### 9.2 Inference
+```bash
+python infer.py --model ckpts/finetune_ckpt-v2_dit-768-12_30000steps-lr0.00005/model-step=24000_reduced.ckpt --input 0.wav --output 0_steps32_cfg0.wav --speaker speaker1 --infer-steps 32 --cfg-strength 2.0
 ```
 
 **Arguments:**
