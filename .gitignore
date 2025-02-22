@@ -6,6 +6,8 @@ outputs/*
 ckpts/*
 mels/*
 lightning_logs/*
+runtime/*
+models/*
 
 .vscode/*
 .cache/*
