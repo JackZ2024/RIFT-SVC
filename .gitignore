@@ -8,6 +8,7 @@ mels/*
 lightning_logs/*
 runtime/*
 models/*
+trans_audio/*
 
 .vscode/*
 .cache/*

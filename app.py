@@ -5,6 +5,8 @@ RIFT-SVC 推理语训练界面
 
 
 import os
+import re
+import csv
 from pathlib import Path
 
 import logging
@@ -12,6 +14,7 @@ logging.disable(logging.CRITICAL)
 
 import click
 import gradio as gr
+import gdown
 
 import infer_api
 
@@ -24,21 +27,20 @@ def load_models_from_csv():
         return models_dict
     with open(csv_path, newline='', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
-        # 音色名称  说话人ID   model链接
+        # 音色名称  模型名称 模型链接
         for row in reader:
-            model_name = row['音色名称'].strip()
-            model_speaker = row['说话人ID'].strip()
-            model_url = row['model链接'].strip()
-            if model_name == "" or model_speaker == "" or model_url == "":
+            timbre_name = row['音色名称'].strip()
+            model_name = row['模型名称'].strip()
+            model_url = row['模型链接'].strip()
+            if timbre_name == "" or model_name == "" or model_url == "":
                 continue
 
-            model_path = "./models/" + model_name + "/" + model_speaker + ".ckpt"
+            model_path = "./models/" + timbre_name + "/" + model_name
             model_dict = {}
             model_dict["model_path"] = model_path.replace("\\", "/")
-            model_dict["speaker"] = model_speaker
             model_dict["model_url"] = model_url
 
-            models_dict[model_name] = model_dict
+            models_dict[timbre_name] = model_dict
 
     return models_dict
 
@@ -69,21 +71,25 @@ def load_models_list():
 
                     model_dict = {}
                     model_dict["model_path"] = model_path.replace("\\", "/")
-                    model_dict["speaker"] = ckpt.replace(".ckpt", "")
                     model_dict["model_url"] = ""
 
                     models_dict[timbre] = model_dict
                     break
             
     return models_dict
-    
-    
+     
 all_models_dict = load_models_list()
 
-def infer_audio(sid0,
-                key_shift,
-                cfg_strength,
-                inputs):
+def get_drive_id(url):
+    """ 通过网盘文件url获取id """
+    pattern = r"(?:https?://)?(?:www\.)?drive\.google\.com/(?:file/d/|folder/d/|open\?id=|uc\?id=|drive/folders/)([a-zA-Z0-9_-]+)"
+    match = re.search(pattern, url)
+    if match:
+        return match.group(1)
+    else:
+        return url
+
+def infer_audio(sid0, key_shift, cfg_strength, inputs):
                     
     global all_models_dict
     
@@ -97,13 +103,18 @@ def infer_audio(sid0,
     
     model_dict = all_models_dict[sid0]
     model_path = model_dict["model_path"]
-    speaker = model_dict["speaker"]
     model_url = model_dict["model_url"]
     
     # 如果模型不存在，那可能就是云端运行，需要下载模型
     if not os.path.exists(model_path):
         # 在这里下载模型
-        pass
+        if model_url != "":
+            file_id = get_drive_id(model_url)
+            os.makedirs(os.path.dirname(model_path), exist_ok=True)
+            gdown.download(id=file_id, output=model_path, fuzzy=True)
+        else:
+            yield "该语种的模型不存在", None
+            return
     
     output_dir = "./trans_audio"
     if not os.path.exists(output_dir):
@@ -117,7 +128,6 @@ def infer_audio(sid0,
                 pass
     
     output_file_list = []
-    # yield "开始转换", None
     for audio in inputs:
         output_file = output_dir + "/" + sid0 + "_" + Path(audio).stem + ".wav"
         output_file_list.append(output_file)
@@ -125,7 +135,7 @@ def infer_audio(sid0,
             model_path,
             audio,
             output_file,
-            speaker,
+            speaker = "",
             key_shift = key_shift,
             device = None,
             infer_steps=64,

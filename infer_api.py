@@ -39,7 +39,7 @@ def infer(
     model,
     input_audio,
     output_audio,
-    speaker,
+    speaker = "",
     key_shift = 0,
     device = None,
     infer_steps=32,
@@ -71,8 +71,10 @@ def infer(
     model.eval()
 
     try:
-        # speaker_id = spk2idx[speaker]
-        speaker_id = list(spk2idx.values())[0]
+        if speaker != "":
+            speaker_id = spk2idx[speaker]
+        else:
+            speaker_id = list(spk2idx.values())[0]
     except KeyError:
         raise ValueError(f"Speaker {speaker} not found in the model's speaker list, valid speakers are {spk2idx.keys()}")
     hop_length = dataset_cfg['hop_length']
