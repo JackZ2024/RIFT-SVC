@@ -15,6 +15,7 @@ logging.disable(logging.CRITICAL)
 import click
 import gradio as gr
 import gdown
+import torch
 
 import infer_api
 
@@ -238,14 +239,22 @@ with gr.Blocks() as app_infer:
 
 with gr.Blocks() as app_train:
     
-    # with gr.TabItem(("训练")):
+    def download_pretrain():
+        pass
+    
     gr.Markdown(
         value=(
-            "未实现"
+            "RIFT-SVC 模型训练"
         )
     )
-    # with gr.Row():
-        # exp_dir1 = gr.Textbox(label=("输入实验名"), value="mi-test")
+    with gr.Row():
+        exp_dir1 = gr.Textbox(label=("输入实验名"), value="mi-test")
+        pretrain_button = gr.Button("下载预训练模型", variant="primary")
+        pretrain_button.click(
+                        fn=download_pretrain,
+                        inputs=[],
+                        outputs=[sid0],
+                    )
         # sr2 = gr.Radio(
             # label=("目标采样率"),
             # choices=["40k", "48k"],
@@ -480,154 +489,73 @@ with gr.Blocks() as app_train:
                 # api_name="train_start_all",
             # )
 
-with gr.Blocks() as app_reduce:
+
+def reduce_ckpt(ckpt, output):
+    # 加载原始检查点
+    checkpoint = torch.load(ckpt, map_location="cpu")
+    print(checkpoint.keys())
+    # 只保留 state_dict
+    new_checkpoint = {"state_dict": checkpoint["state_dict"], "hyper_parameters": checkpoint["hyper_parameters"]}
+
+    if output == "" or output == ckpt:
+        output = ckpt.replace(".ckpt", "_reduced.ckpt")
+
+    # 保存新的精简检查点
+    torch.save(new_checkpoint, output)
+    yield f"精简完成，新检查点路径： {output}"
+    return
+
+with gr.Blocks() as app_ckpt_reduce:
     
     gr.Markdown(
         value=(
-            "未实现"
+            "RIFT-SVC 模型精简，去除模型内用于训练的参数，减小模型体积，如果训练时保存的已经是精简后的模型，就不用再精简了。"
         )
     )
+    
+    # def refresh_timbre():
+        # global all_models_dict
+        
+        # all_models_dict.clear()
+        # all_models_dict = load_models_list()
+        # sid0s = sorted(list(all_models_dict.keys()))
+        # def_value = ""
+        # if len(sid0s) > 0:
+            # def_value = sid0s[0]
+        # return gr.update(choices=sid0s, value=def_value)
+    
+    # with gr.Row(equal_height=True):
+        # with gr.Column():
+            # with gr.Row():
+                # sid0 = gr.Dropdown(label="音色列表", choices=sorted(list(all_models_dict.keys())))
 
-# with gr.TabItem(("ckpt处理")):
-    # with gr.Group():
-        # gr.Markdown(value=("模型融合, 可用于测试音色融合"))
-        # with gr.Row():
-            # ckpt_a = gr.Textbox(label=("A模型路径"), value="", interactive=True)
-            # ckpt_b = gr.Textbox(label=("B模型路径"), value="", interactive=True)
-            # alpha_a = gr.Slider(
-                # minimum=0,
-                # maximum=1,
-                # label=("A模型权重"),
-                # value=0.5,
-                # interactive=True,
-            # )
-        # with gr.Row():
-            # sr_ = gr.Radio(
-                # label=("目标采样率"),
-                # choices=["40k", "48k"],
-                # value="40k",
-                # interactive=True,
-            # )
-            # if_f0_ = gr.Radio(
-                # label=("模型是否带音高指导"),
-                # choices=[("是"), ("否")],
-                # value=("是"),
-                # interactive=True,
-            # )
-            # info__ = gr.Textbox(
-                # label=("要置入的模型信息"), value="", max_lines=8, interactive=True
-            # )
-            # name_to_save0 = gr.Textbox(
-                # label=("保存的模型名不带后缀"),
-                # value="",
-                # max_lines=1,
-                # interactive=True,
-            # )
-            # version_2 = gr.Radio(
-                # label=("模型版本型号"),
-                # choices=["v1", "v2"],
-                # value="v1",
-                # interactive=True,
-            # )
-        # with gr.Row():
-            # but6 = gr.Button(("融合"), variant="primary")
-            # info4 = gr.Textbox(label=("输出信息"), value="", max_lines=8)
-        # but6.click(
-            # merge,
-            # [
-                # ckpt_a,
-                # ckpt_b,
-                # alpha_a,
-                # sr_,
-                # if_f0_,
-                # info__,
-                # name_to_save0,
-                # version_2,
-            # ],
-            # info4,
-            # api_name="ckpt_merge",
-        # )  # def merge(path1,path2,alpha1,sr,f0,info):
-    # with gr.Group():
-        # gr.Markdown(value=("修改模型信息(仅支持weights文件夹下提取的小模型文件)"))
-        # with gr.Row():
-            # ckpt_path0 = gr.Textbox(
-                # label=("模型路径"), value="", interactive=True
-            # )
-            # info_ = gr.Textbox(
-                # label=("要改的模型信息"), value="", max_lines=8, interactive=True
-            # )
-            # name_to_save1 = gr.Textbox(
-                # label=("保存的文件名, 默认空为和源文件同名"),
-                # value="",
-                # max_lines=8,
-                # interactive=True,
-            # )
-        # with gr.Row():
-            # but7 = gr.Button(("修改"), variant="primary")
-            # info5 = gr.Textbox(label=("输出信息"), value="", max_lines=8)
-        # but7.click(
-            # change_info,
-            # [ckpt_path0, info_, name_to_save1],
-            # info5,
-            # api_name="ckpt_modify",
-        # )
-    # with gr.Group():
-        # gr.Markdown(value=("查看模型信息(仅支持weights文件夹下提取的小模型文件)"))
-        # with gr.Row():
-            # ckpt_path1 = gr.Textbox(
-                # label=("模型路径"), value="", interactive=True
-            # )
-            # but8 = gr.Button(("查看"), variant="primary")
-            # info6 = gr.Textbox(label=("输出信息"), value="", max_lines=8)
-        # but8.click(show_info, [ckpt_path1], info6, api_name="ckpt_show")
-    # with gr.Group():
-        # gr.Markdown(
-            # value=(
-                # "模型提取(输入logs文件夹下大文件模型路径),适用于训一半不想训了模型没有自动提取保存小文件模型,或者想测试中间模型的情况"
-            # )
-        # )
-        # with gr.Row():
-            # ckpt_path2 = gr.Textbox(
-                # label=("模型路径"),
-                # value="E:\\codes\\py39\\logs\\mi-test_f0_48k\\G_23333.pth",
-                # interactive=True,
-            # )
-            # save_name = gr.Textbox(
-                # label=("保存名"), value="", interactive=True
-            # )
-            # sr__ = gr.Radio(
-                # label=("目标采样率"),
-                # choices=["32k", "40k", "48k"],
-                # value="40k",
-                # interactive=True,
-            # )
-            # if_f0__ = gr.Radio(
-                # label=("模型是否带音高指导,1是0否"),
-                # choices=["1", "0"],
-                # value="1",
-                # interactive=True,
-            # )
-            # version_1 = gr.Radio(
-                # label=("模型版本型号"),
-                # choices=["v1", "v2"],
-                # value="v2",
-                # interactive=True,
-            # )
-            # info___ = gr.Textbox(
-                # label=("要置入的模型信息"), value="", max_lines=8, interactive=True
-            # )
-            # but9 = gr.Button(("提取"), variant="primary")
-            # info7 = gr.Textbox(label=("输出信息"), value="", max_lines=8)
-            # ckpt_path2.change(
-                # change_info_, [ckpt_path2], [sr__, if_f0__, version_1]
-            # )
-        # but9.click(
-            # extract_small_model,
-            # [ckpt_path2, save_name, sr__, if_f0__, info___, version_1],
-            # info7,
-            # api_name="ckpt_extract",
-        # )
+                # refresh_button = gr.Button("刷新列表", variant="primary")
+                # refresh_button.click(
+                                # fn=refresh_timbre,
+                                # inputs=[],
+                                # outputs=[sid0],
+                            # )
+                            
+            # with gr.Row():
+                # sid0 = gr.Dropdown(label="模型列表", choices=sorted(list(all_models_dict.keys())))
 
+    with gr.Column():
+        ckpt_a = gr.Textbox(label=("模型路径"), value="", interactive=True)
+        ckpt_b = gr.Textbox(label=("输出模型路径"), value="", interactive=True)
+
+    with gr.Row():
+        but6 = gr.Button("精简", variant="primary")
+        info4 = gr.Textbox(label="输出信息", value="", max_lines=8)
+        
+    but6.click(
+        reduce_ckpt,
+        [
+            ckpt_a,
+            ckpt_b,
+        ],
+        info4,
+    )
+    
 with gr.Blocks(title="RIFT-SVC WebUI") as app:
     gr.Markdown("## RIFT-SVC WebUI v1.0")
     gr.Markdown(
@@ -635,7 +563,7 @@ with gr.Blocks(title="RIFT-SVC WebUI") as app:
     )
     
     gr.TabbedInterface(
-        [app_infer, app_train, app_reduce],
+        [app_infer, app_train, app_ckpt_reduce],
         ["模型推理", "模型训练", "精简模型"],
     )
    
