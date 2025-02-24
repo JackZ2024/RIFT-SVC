@@ -22,40 +22,7 @@ from pathlib import Path
     help='Enable verbose output.'
 )
 def combine_features(data_dir, verbose):
-    """
-    Combine precomputed features (mel_spec, rms, f0, cvec) into a single file for each audio.
-    This enhances loading speed by reducing the number of file I/O operations during data loading.
-    """
-    meta_info = Path(data_dir) / "meta_info.json"
-    try:
-        with open(meta_info, 'r', encoding='utf-8') as f:
-            meta = json.load(f)
-    except Exception as e:
-        click.echo(f"Error reading meta_info.json: {e}", err=True)
-        sys.exit(1)
-
-    train_audios = meta.get('train_audios', [])
-    test_audios = meta.get('test_audios', [])
-    all_audios = train_audios + test_audios
-
-    if verbose:
-        click.echo(f"Total audios to process: {len(all_audios)}")
-
-    # Set up multiprocessing
-    num_processes = cpu_count()
-    process_fn = partial(process_single_audio, data_dir=data_dir, verbose=verbose)
-    
-    with Pool(processes=num_processes) as pool:
-        results = list(tqdm(
-            pool.imap(process_fn, all_audios),
-            total=len(all_audios),
-            desc="Combining Features",
-            unit="audio"
-        ))
-
-    successful = sum(1 for r in results if r)
-    if verbose:
-        click.echo(f"Feature combination complete. Successfully processed {successful}/{len(all_audios)} files.")
+    process(data_dir, verbose)
 
 def process_single_audio(audio, data_dir, verbose):
     """Helper function to process a single audio file"""
@@ -121,6 +88,42 @@ def process_single_audio(audio, data_dir, verbose):
     except Exception as e:
         click.echo(f"Error combining features for {file_name}: {e}", err=True)
         return False
+
+def process(data_dir, verbose=False):
+    """
+    Combine precomputed features (mel_spec, rms, f0, cvec) into a single file for each audio.
+    This enhances loading speed by reducing the number of file I/O operations during data loading.
+    """
+    meta_info = Path(data_dir) / "meta_info.json"
+    try:
+        with open(meta_info, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+    except Exception as e:
+        click.echo(f"Error reading meta_info.json: {e}", err=True)
+        sys.exit(1)
+
+    train_audios = meta.get('train_audios', [])
+    test_audios = meta.get('test_audios', [])
+    all_audios = train_audios + test_audios
+
+    if verbose:
+        click.echo(f"Total audios to process: {len(all_audios)}")
+
+    # Set up multiprocessing
+    num_processes = cpu_count()
+    process_fn = partial(process_single_audio, data_dir=data_dir, verbose=verbose)
+    
+    with Pool(processes=num_processes) as pool:
+        results = list(tqdm(
+            pool.imap(process_fn, all_audios),
+            total=len(all_audios),
+            desc="Combining Features",
+            unit="audio"
+        ))
+
+    successful = sum(1 for r in results if r)
+    if verbose:
+        click.echo(f"Feature combination complete. Successfully processed {successful}/{len(all_audios)} files.")
 
 if __name__ == "__main__":
     combine_features()

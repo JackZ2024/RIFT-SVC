@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import torchaudio
 import wandb
 from pytorch_lightning import LightningModule
+import pytorch_lightning
 
 from rift_svc.metrics import mcd, psnr, si_snr, snr
 from rift_svc.modules import get_mel_spectrogram
@@ -91,7 +92,7 @@ class RIFTSVCLightningModule(LightningModule):
             'val/snr': np.mean(self.snr),
             'val/mse': np.mean(self.mse)
         }
-        if log:
+        if log and isinstance(self.logger, pytorch_lightning.loggers.wandb.WandbLogger):
             self.logger.experiment.log(metrics, step=self.global_step)
 
 
@@ -145,7 +146,7 @@ class RIFTSVCLightningModule(LightningModule):
             self.snr.append(snr(mel_gen_i, mel_gt_i).cpu().item())
             self.mse.append(F.mse_loss(mel_gen_i, mel_gt_i).cpu().item())
 
-            if log:
+            if log and isinstance(self.logger, pytorch_lightning.loggers.wandb.WandbLogger):
                 os.makedirs('.cache', exist_ok=True)
                 if global_step % log_media_every_n_steps == 0:
                     torchaudio.save(f".cache/{sample_idx}_gen.wav", wav_gen.cpu().to(torch.float32), 44100)

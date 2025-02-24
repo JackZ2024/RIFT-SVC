@@ -148,9 +148,15 @@ def worker_process(audio_subset, data_dir, model_path, queue, verbose, device_id
     help='Enable verbose output.'
 )
 def generate_contentvec(data_dir, model_path, num_workers_per_device, verbose):
+    process(data_dir, model_path, num_workers_per_device, verbose)
+
+def process(data_dir, model_path='pretrained/content-vec-best', num_workers_per_device=1, verbose=False):
     """
     Generate content vectors for each audio file specified in the meta_info.json and save them as .contentvec.pt files.
     """
+    
+    mp.set_start_method('spawn', force=True)
+    
     meta_info = Path(data_dir) / "meta_info.json"
     try:
         with open(meta_info, 'r', encoding='utf-8') as f:
@@ -262,7 +268,6 @@ def generate_contentvec(data_dir, model_path, num_workers_per_device, verbose):
         p.join()
 
     click.echo("Content vector extraction complete.")
-
 
 if __name__ == "__main__":
     # Set start method to spawn

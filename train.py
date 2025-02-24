@@ -9,6 +9,7 @@ from pytorch_lightning.loggers import WandbLogger
 from schedulefree import AdamWScheduleFree
 from torch.utils.data import DataLoader
 import torch
+import wandb
 
 from rift_svc import RF, DiT
 from rift_svc.dataset import collate_fn, load_svc_dataset
@@ -101,7 +102,7 @@ def load_state_dict(model, state_dict, strict=False):
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg: DictConfig):
     pl.seed_everything(cfg.seed)
-
+    print(f"Data dir: {cfg.dataset.data_dir}")
     train_dataset = load_svc_dataset(
         data_dir=cfg.dataset.data_dir,
         meta_info_path=cfg.dataset.meta_info_path,
@@ -161,18 +162,25 @@ def main(cfg: DictConfig):
         save_weights_only=cfg.training.save_weights_only,
     )
 
-    wandb_logger = WandbLogger(
-        project=cfg.training.wandb_project,
-        name=cfg.training.wandb_run_name,
-        id=cfg.training.get('wandb_resume_id', None),
-        resume='allow',
-    )
-    if wandb_logger.experiment.config:
-        # Merge with existing config, giving priority to existing values
-        wandb_logger.experiment.config.update(cfg_dict, allow_val_change=True)
-    else:
-        # If no existing config, set it directly
-        wandb_logger.experiment.config.update(cfg_dict)
+    if cfg.training.logger == "wandb" and not wandb.api.api_key:
+        cfg.training.logger = None
+        
+    logger = None
+    if cfg.training.logger == "wandb":
+        wandb_logger = WandbLogger(
+            project=cfg.training.wandb_project,
+            name=cfg.training.wandb_run_name,
+            id=cfg.training.get('wandb_resume_id', None),
+            resume='allow',
+        )
+        if wandb_logger.experiment.config:
+            # Merge with existing config, giving priority to existing values
+            wandb_logger.experiment.config.update(cfg_dict, allow_val_change=True)
+        else:
+            # If no existing config, set it directly
+            wandb_logger.experiment.config.update(cfg_dict)
+            
+        logger = wandb_logger
 
 
     trainer = pl.Trainer(
@@ -183,7 +191,7 @@ def main(cfg: DictConfig):
         precision='bf16-mixed',
         accumulate_grad_batches=cfg.training.grad_accumulation_steps,
         callbacks=[checkpoint_callback, CustomProgressBar()],
-        logger=wandb_logger,
+        logger=logger,
         val_check_interval=cfg.training.test_per_steps,
         check_val_every_n_epoch=None,
         gradient_clip_val=cfg.training.max_grad_norm,

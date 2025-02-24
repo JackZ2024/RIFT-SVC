@@ -169,6 +169,43 @@ def generate_meta_info(speaker_to_files, split_type, num_test, num_test_per_spea
 
     return meta_info
 
+def process(data_dir, split_type='random', num_test=20, num_test_per_speaker=1, 
+            only_include_speakers=None, seed=42):
+                
+    """
+    Generate meta-information for the preprocessed audio dataset.
+
+    The meta-information includes a list of speakers, training audio files, and testing audio files.
+    The testing set can be generated either by randomly selecting a specified number of files or by
+    selecting a specified number of files from each speaker (stratified).
+    """
+    
+    data_dir = Path(data_dir)
+    speaker_to_files = gather_audio_files(data_dir)
+
+    if not speaker_to_files:
+        click.echo(f"No audio files found in the data directory '{data_dir}'.", err=True)
+        # sys.exit(1)
+        return
+
+    meta_info = generate_meta_info(
+        speaker_to_files,
+        split_type=split_type.lower(),
+        num_test=num_test,
+        num_test_per_speaker=num_test_per_speaker,
+        seed=seed,
+        only_include_speakers=only_include_speakers
+    )
+
+    output_file = Path(data_dir) / "meta_info.json"
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(meta_info, f, ensure_ascii=False, indent=4)
+        click.echo(f"Meta-information successfully saved to '{output_file}'.")
+    except Exception as e:
+        click.echo(f"Error writing to output file '{output_file}': {e}", err=True)
+        # sys.exit(1)
+        return
 
 @click.command()
 @click.option(
@@ -213,37 +250,8 @@ def generate_meta_info(speaker_to_files, split_type, num_test, num_test_per_spea
     help="Random seed for reproducibility."
 )
 def main(data_dir, split_type, num_test, num_test_per_speaker, only_include_speakers, seed):
-    """
-    Generate meta-information for the preprocessed audio dataset.
-
-    The meta-information includes a list of speakers, training audio files, and testing audio files.
-    The testing set can be generated either by randomly selecting a specified number of files or by
-    selecting a specified number of files from each speaker (stratified).
-    """
-    data_dir = Path(data_dir)
-    speaker_to_files = gather_audio_files(data_dir)
-
-    if not speaker_to_files:
-        click.echo(f"No audio files found in the data directory '{data_dir}'.", err=True)
-        sys.exit(1)
-
-    meta_info = generate_meta_info(
-        speaker_to_files,
-        split_type=split_type.lower(),
-        num_test=num_test,
-        num_test_per_speaker=num_test_per_speaker,
-        seed=seed,
-        only_include_speakers=only_include_speakers
-    )
-
-    output_file = Path(data_dir) / "meta_info.json"
-    try:
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(meta_info, f, ensure_ascii=False, indent=4)
-        click.echo(f"Meta-information successfully saved to '{output_file}'.")
-    except Exception as e:
-        click.echo(f"Error writing to output file '{output_file}': {e}", err=True)
-        sys.exit(1)
+    
+    process(data_dir, split_type, num_test, num_test_per_speaker, only_include_speakers, seed)
 
 
 if __name__ == "__main__":

@@ -144,6 +144,10 @@ def process_audio(audio, data_dir, hop_length, n_mel_channels, sample_rate, verb
     help='Enable verbose output.'
 )
 def generate_mel_specs(data_dir, hop_length, n_mel_channels, sample_rate, num_workers, verbose):
+    process(data_dir, hop_length, n_mel_channels, sample_rate, num_workers, verbose)
+
+def process(data_dir, hop_length=512, n_mel_channels=128, sample_rate=44100, 
+            num_workers=cpu_count(), verbose=False):
     """
     Generate Mel spectrograms for each audio file specified in the meta_info.json and save them as .mel.pt files.
     This version uses multiprocessing for enhanced efficiency.
@@ -218,7 +222,6 @@ def generate_mel_specs(data_dir, hop_length, n_mel_channels, sample_rate, num_wo
         sys.exit(1)
 
     click.echo("Mel spectrogram generation complete.")
-
 
 if __name__ == "__main__":
     generate_mel_specs()

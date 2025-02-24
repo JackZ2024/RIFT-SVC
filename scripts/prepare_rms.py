@@ -47,6 +47,9 @@ from rift_svc.modules import RMSExtractor
     help='Enable verbose output.'
 )
 def generate_rms(data_dir, hop_length, verbose):
+    process(data_dir, hop_length, verbose)
+
+def process(data_dir, hop_length=512, verbose=False):
     """
     Generate RMS energy for each audio file specified in the meta_info.json and save them as .rms.pt files.
     """
@@ -135,7 +138,6 @@ def generate_rms(data_dir, hop_length, verbose):
             continue
 
     click.echo("RMS energy extraction complete.")
-
 
 if __name__ == "__main__":
     generate_rms()

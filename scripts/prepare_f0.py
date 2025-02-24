@@ -164,6 +164,10 @@ def worker_process(audio_subset, data_dir, model_path, hop_length, sample_rate, 
     help='Enable verbose output.'
 )
 def generate_f0(data_dir, model_path, hop_length, sample_rate, num_workers_per_device, verbose):
+    process(data_dir, model_path, hop_length, sample_rate, num_workers_per_device, verbose)
+
+def process(data_dir,model_path='pretrained/rmvpe/model.pt', hop_length=512, sample_rate=44100, 
+            num_workers_per_device=1, verbose=False):
     """
     Generate f0 for each audio file specified in the meta_info.json and save them as .f0.pt files.
     """
@@ -279,6 +283,7 @@ def generate_f0(data_dir, model_path, hop_length, sample_rate, num_workers_per_d
         p.join()
 
     click.echo("f0 extraction complete.")
+
 
 if __name__ == "__main__":
     generate_f0()

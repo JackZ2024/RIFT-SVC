@@ -165,9 +165,15 @@ def worker_process(audio_subset, data_dir, model_path, queue, verbose, device_id
     help='Enable verbose output.'
 )
 def prepare_whisper(data_dir, model_path, num_workers_per_device, layer_index, verbose):
+    process(data_dir, model_path, num_workers_per_device, layer_index, verbose)
+
+def process(data_dir, model_path='pretrained/whisper-large-v3', num_workers_per_device=1, layer_index=-2, verbose=False):
     """
     Prepare Whisper embeddings for each audio file specified in the meta_info.json and save them as .whisper.pt files.
     """
+    
+    mp.set_start_method('spawn', force=True)
+    
     meta_info = Path(data_dir) / "meta_info.json"
     try:
         with open(meta_info, 'r', encoding='utf-8') as f:
@@ -280,7 +286,6 @@ def prepare_whisper(data_dir, model_path, num_workers_per_device, layer_index, v
         p.join()
 
     click.echo("Whisper embedding preparation complete.")
-
 
 if __name__ == "__main__":
     # Set start method to spawn
