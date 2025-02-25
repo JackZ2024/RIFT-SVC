@@ -3,14 +3,10 @@ import queue
 import re
 from pathlib import Path
 
-# import gc
-# import json
 import os
 import platform
 import psutil
-# import random
 import signal
-# import shutil
 import subprocess
 import sys
 import time
@@ -19,6 +15,9 @@ from glob import glob
 import click
 import gradio as gr
 import torch
+from huggingface_hub import snapshot_download
+import requests
+from tqdm import tqdm  # 用于显示进度条
 
 import logging
 logging.disable(logging.CRITICAL)
@@ -301,6 +300,38 @@ def prepare_data(name_project):
     
     return "处理完成"
 
+def download_file(url, filename):
+    response = requests.get(url, stream=True)
+    total_size = int(response.headers.get('content-length', 0))
+    block_size = 1024 * 1024  # 每次下载 1KB
+
+    with open(filename, 'wb') as file, tqdm(
+        total=total_size, unit='B', unit_scale=True, desc=filename
+    ) as bar:
+        for data in response.iter_content(block_size):
+            file.write(data)
+            bar.update(len(data))
+
+    print(f"\n文件已下载到 {filename}")
+
+def download_pre_models():
+    snapshot_download(
+        repo_id="Pur1zumu/RIFT-SVC-modules",
+        local_dir='pretrained',
+        local_dir_use_symlinks=False,  # Don't use symlinks
+        local_files_only=False,        # Allow downloading new files
+        ignore_patterns=["*.git*"],    # Ignore git-related files
+        resume_download=True           # Resume interrupted downloads
+    )
+    
+    url = "https://huggingface.co/Pur1zumu/RIFT-SVC-pretrained/resolve/main/pretrain-v2-final_dit-768-12_300000steps-lr0.0003.ckpt"
+    
+    filename = "pretrained/pretrain-v2-final_dit-768-12_300000steps-lr0.0003.ckpt"
+    if not os.path.exists(filename):
+        download_file(url, filename)
+    
+    return "下载完成"
+    
 def infer(cm_checkpoint, nfe_step, cfg_strength, input_audio):
     
     if not input_audio:
@@ -427,6 +458,7 @@ with gr.Blocks(title="RIFT-SVC WebUI") as app:
             with gr.Row():
                 resample_normalize = gr.Button("重采样及归一化音频数据")
                 prepare = gr.Button("处理数据")
+                download_premodels = gr.Button("下载依赖模型")
             txt_info_prepare = gr.Text(label="Info", value="")
 
             resample_normalize.click(
@@ -435,11 +467,14 @@ with gr.Blocks(title="RIFT-SVC WebUI") as app:
             prepare.click(
                 fn=prepare_data, inputs=[cm_project], outputs=[txt_info_prepare]
             )
+            download_premodels.click(
+                fn=download_pre_models, inputs=[], outputs=[txt_info_prepare]
+            )
 
         with gr.TabItem("微调训练"):
-            gr.Markdown("""```plaintext 
-            待定
-```""")
+            # gr.Markdown("""```plaintext 
+            # 待定
+# ```""")
 
             def resume_train_change(resume_train):
                 if resume_train:
