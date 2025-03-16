@@ -316,7 +316,7 @@ def download_file(url, filename):
 
 def download_pre_models():
     snapshot_download(
-        repo_id="Pur1zumu/RIFT-SVC-modules",
+        repo_id="Jack202410/SVC-modules",
         local_dir='pretrained',
         local_dir_use_symlinks=False,  # Don't use symlinks
         local_files_only=False,        # Allow downloading new files
@@ -345,6 +345,13 @@ def infer(cm_checkpoint, nfe_step, cfg_strength, input_audio):
     output_dir = "./trans_audio"
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
+    else:
+        # 把里面的东西删除
+        for file in os.listdir(output_dir):
+            try:
+                os.remove(output_dir + "/" + file)
+            except:
+                pass
     
     output_file = output_dir + "/" + Path(input_audio).stem + "_rift.wav"
     infer_api.infer(
