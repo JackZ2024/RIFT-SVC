@@ -34,8 +34,8 @@ from scripts import prepare_mel
 from scripts import prepare_rms
 from scripts import prepare_f0
 from scripts import prepare_cvec
-from scripts import prepare_whisper
-from scripts import combine_features
+# from scripts import prepare_whisper
+# from scripts import combine_features
 
 import infer_api
 

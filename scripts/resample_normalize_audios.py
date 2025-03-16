@@ -55,7 +55,7 @@ def process_audio_file(file_path, target_sample_rate, target_loudness, headroom=
             clipped = True
 
         # Write the resampled and loudness-normalized audio back to the same path
-        sf.write(file_path, loudness_normalized_audio, samplerate, 'PCM_24')
+        sf.write(file_path, loudness_normalized_audio, samplerate)
 
         if clipped:
             return (f"Processed (Clipped Handled): {file_path} | "
