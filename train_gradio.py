@@ -418,21 +418,36 @@ def infer(cm_checkpoint, nfe_step, cfg_strength, input_audio):
                 pass
     
     output_file = output_dir + "/" + Path(input_audio).stem + "_rift.wav"
-    infer_api.infer(
-        cm_checkpoint,
-        input_audio,
-        output_file,
-        speaker = "",
-        key_shift = 0,
-        device = None,
-        infer_steps=nfe_step,
-        cfg_strength=cfg_strength,
-        target_loudness=-18.0,
-        restore_loudness=True,
-        interpolate_src=0.0,
-        fade_duration=20.0
+    
+    # python infer.py \
+    # --model ckpts/finetune_ckpt-v3_dit-768-12_30000steps-lr0.00005/model-step=30000.ckpt \
+    # --input 0.wav \
+    # --output 0_steps32_cfg0.wav \
+    # --speaker speaker1 \
+    # --key-shift 0 \
+    # --infer-steps 32 \
+    # --batch-size 4 \
+    # --ds-cfg-strength 0.1 \
+    # --spk-cfg-strength 0.2 \
+    # --skip-cfg-strength 0.1 \
+    # --cfg-skip-layers 6 \
+    # --cfg-rescale 0.7 \
+    # --cvec-downsample-rate 2
+    
+    print("开始转换")
+    cmd = (
+        f"{python_executable} infer.py"
+        f" --model {cm_checkpoint}"
+        f" --input {input_audio}"
+        f" --output {output_file}"
+        f" --speaker ''"
+        f" --infer-steps {nfe_step}"
+        f" --spk-cfg-strength {cfg_strength}"
     )
-        
+    training_process = subprocess.Popen(cmd, shell=True)
+    time.sleep(5)
+    training_process.wait()
+    
     yield output_file, "转换完成"
     return
 

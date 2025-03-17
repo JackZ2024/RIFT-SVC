@@ -516,7 +516,10 @@ def main(
     svc_model, vocoder, rmvpe, hubert, rms_extractor, spk2idx, dataset_cfg = load_models(model, device, use_fp16)
 
     try:
-        speaker_id = spk2idx[speaker]
+        if speaker != "":
+            speaker_id = spk2idx[speaker]
+        else:
+            speaker_id = list(spk2idx.values())[0]
     except KeyError:
         raise ValueError(f"Speaker {speaker} not found in the model's speaker list, valid speakers are {spk2idx.keys()}")
     
@@ -577,7 +580,7 @@ def main(
     click.echo("Saving output...")
     output_path = Path(output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    torchaudio.save(output, torch.from_numpy(result_audio).unsqueeze(0), sample_rate)
+    torchaudio.save(output, torch.from_numpy(result_audio).unsqueeze(0), sample_rate, encoding="PCM_S", bits_per_sample=24)
     click.echo("Done!")
 
 

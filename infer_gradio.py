@@ -16,7 +16,24 @@ import click
 import gradio as gr
 import gdown
 
-import infer_api
+# import numpy as np
+import torch
+import torchaudio
+# import tempfile
+import gc
+import traceback
+from slicer import Slicer
+
+from infer import (
+    load_models, 
+    load_audio, 
+    apply_fade, 
+    batch_process_segments
+)
+
+global svc_model, vocoder, rmvpe, hubert, rms_extractor, spk2idx, dataset_cfg, device
+svc_model = vocoder = rmvpe = hubert = rms_extractor = spk2idx = dataset_cfg = None
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 os.chdir(os.path.dirname(__file__))
 
@@ -89,6 +106,170 @@ def get_drive_id(url):
     else:
         return url
 
+def initialize_models(model_path):
+    global svc_model, vocoder, rmvpe, hubert, rms_extractor, spk2idx, dataset_cfg
+    
+    # lang = LANGUAGES[current_language]
+    use_fp16 = True
+    
+    if svc_model is not None:
+        del svc_model
+        del vocoder
+        del rmvpe
+        del hubert
+        del rms_extractor
+        torch.cuda.empty_cache()
+        gc.collect()
+    
+    try:
+        if not os.path.exists(model_path):
+            # return [], f"{lang['error_model_not_found']}: {model_path}"
+            return
+        
+        svc_model, vocoder, rmvpe, hubert, rms_extractor, spk2idx, dataset_cfg = load_models(model_path, device, use_fp16)
+        available_speakers = list(spk2idx.keys())
+        # return available_speakers, f"{lang['model_loaded_success']} {', '.join(available_speakers)}"
+        return
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        # return [], f"{lang['error_loading_model']}: {str(e)}\n\n{lang['error_details_label']}: {error_trace}"
+        return
+        
+def process_with_progress(
+    progress=gr.Progress(),
+    input_audio=None,
+    output_file=None,
+    speaker=None,
+    key_shift=0,
+    infer_steps=32,
+    robust_f0=1,
+    use_fp16=True,
+    batch_size=1,
+    ds_cfg_strength=0.1,
+    spk_cfg_strength=1.0,
+    skip_cfg_strength=0.0,
+    cfg_skip_layers=6,
+    cfg_rescale=0.7,
+    cvec_downsample_rate=2,
+    slicer_threshold=-30.0,
+    slicer_min_length=3000,
+    slicer_min_interval=100,
+    slicer_hop_size=10,
+    slicer_max_sil_kept=200
+):
+    global svc_model, vocoder, rmvpe, hubert, rms_extractor, spk2idx, dataset_cfg
+    
+    # lang = LANGUAGES[current_language]
+    
+    target_loudness = -18.0
+    restore_loudness = True
+    fade_duration = 20.0
+    
+    if input_audio is None:
+        return None, "error_no_audio"
+    
+    if svc_model is None:
+        return None, "error_no_model"
+    
+    # if speaker is None or speaker not in spk2idx:
+        # return None, "error_invalid_speaker".format(", ".join(spk2idx.keys()))
+    
+    try:
+        progress(0, desc="loading_audio")
+        
+        if speaker:
+            speaker_id = spk2idx[speaker]
+        else:
+            speaker_id = list(spk2idx.values())[0]
+        
+        hop_length = 512
+        sample_rate = 44100
+        
+        if cfg_skip_layers < 0:
+            cfg_skip_layers_value = None
+        else:
+            cfg_skip_layers_value = cfg_skip_layers
+        
+        audio = load_audio(input_audio, sample_rate)
+        
+        slicer = Slicer(
+            sr=sample_rate,
+            threshold=slicer_threshold,
+            min_length=slicer_min_length,
+            min_interval=slicer_min_interval,
+            hop_size=slicer_hop_size,
+            max_sil_kept=slicer_max_sil_kept
+        )
+        
+        progress(0.1, desc="slicing_audio")
+        segments_with_pos = slicer.slice(audio)
+        
+        if not segments_with_pos:
+            return None, "error_no_segments"
+        
+        fade_samples = int(fade_duration * sample_rate / 1000)
+        
+        progress(0.2, desc="start_conversion")
+        
+        with torch.no_grad():
+            processed_segments = batch_process_segments(
+                segments_with_pos, svc_model, vocoder, rmvpe, hubert, rms_extractor,
+                speaker_id, sample_rate, hop_length, device,
+                key_shift, infer_steps, ds_cfg_strength, spk_cfg_strength,
+                skip_cfg_strength, cfg_skip_layers_value, cfg_rescale,
+                cvec_downsample_rate, target_loudness, restore_loudness,
+                robust_f0, use_fp16, batch_size, progress, "processing_segment"
+            )
+            
+            result_audio = np.zeros(len(audio) + fade_samples)
+            
+            for idx, (start_sample, audio_out, expected_length) in enumerate(processed_segments):
+                segment_progress = 0.8 + (0.1 * (idx / len(processed_segments)))
+                progress(segment_progress, desc="finalizing_audio")
+                
+                if len(audio_out) > expected_length:
+                    audio_out = audio_out[:expected_length]
+                elif len(audio_out) < expected_length:
+                    audio_out = np.pad(audio_out, (0, expected_length - len(audio_out)), 'constant')
+                
+                if idx > 0:
+                    audio_out = apply_fade(audio_out.copy(), fade_samples, fade_in=True)
+                    result_audio[start_sample:start_sample + fade_samples] *= np.linspace(1, 0, fade_samples)
+                
+                if idx < len(processed_segments) - 1:
+                    audio_out[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+                
+                result_audio[start_sample:start_sample + len(audio_out)] += audio_out
+        
+        progress(0.9, desc="finalizing_audio")
+        result_audio = result_audio[:len(audio)]
+        
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+            output_path = temp_file.name
+        
+        # torchaudio.save(output_path, torch.from_numpy(result_audio).unsqueeze(0).float(), sample_rate)
+        torchaudio.save(output_audio, torch.from_numpy(result_audio).unsqueeze(0).float(), \
+                        sample_rate, encoding="PCM_S", bits_per_sample=24)
+        
+        progress(1.0, desc="processing_complete")
+        return (sample_rate, result_audio), "conversion_complete".format(speaker, key_shift)
+        
+    except RuntimeError as e:
+        if "CUDA out of memory" in str(e):
+            torch.cuda.empty_cache()
+            gc.collect()
+            
+            return None, lang["error_out_of_memory"]
+        else:
+            return None, lang["error_conversion"].format(str(e))
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        return None, lang["error_details"].format(str(e), error_trace)
+    finally:
+        torch.cuda.empty_cache()
+        gc.collect()
+
+
 def infer_audio(sid0, key_shift, cfg_strength, inputs):
                     
     global all_models_dict
@@ -116,6 +297,8 @@ def infer_audio(sid0, key_shift, cfg_strength, inputs):
             yield "该语种的模型不存在", None
             return
     
+    initialize_models(model_path)
+    
     output_dir = "./trans_audio"
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
@@ -131,19 +314,15 @@ def infer_audio(sid0, key_shift, cfg_strength, inputs):
     for audio in inputs:
         output_file = output_dir + "/" + sid0 + "_" + Path(audio).stem + ".wav"
         output_file_list.append(output_file)
-        infer_api.infer(
-            model_path,
-            audio,
-            output_file,
-            speaker = "",
-            key_shift = key_shift,
-            device = None,
+        process_with_progress(
+            input_audio=audio,
+            output_file=output_file,
+            speaker=None,
+            key_shift=key_shift,
             infer_steps=64,
-            cfg_strength=cfg_strength,
-            target_loudness=-18.0,
-            restore_loudness=True,
-            interpolate_src=0.0,
-            fade_duration=20.0
+            ds_cfg_strength=0.1,
+            spk_cfg_strength=cfg_strength,
+            skip_cfg_strength=0.0,
         )
         
     yield "转换完成", output_file_list
