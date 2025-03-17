@@ -28,16 +28,16 @@ python_executable = sys.executable or "python"
 
 os.chdir(os.path.dirname(__file__))
 
-from scripts import resample_normalize_audios
-from scripts import prepare_data_meta
-from scripts import prepare_mel
-from scripts import prepare_rms
-from scripts import prepare_f0
-from scripts import prepare_cvec
+# from scripts import resample_normalize_audios
+# from scripts import prepare_data_meta
+# from scripts import prepare_mel
+# from scripts import prepare_rms
+# from scripts import prepare_f0
+# from scripts import prepare_cvec
 # from scripts import prepare_whisper
 # from scripts import combine_features
 
-import infer_api
+# import infer_api
 
 
 path_data = os.path.dirname(__file__) + "/data"
@@ -80,10 +80,8 @@ def start_training(
     test_per_steps=2000,
     eval_cfg_strength=2.0,
     save_weights_only=True,
-    logger="",
     resume_train=False,
     tr_checkpoint="",
-    wandb_resume_id="",
 ):
     global training_process, stop_signal
 
@@ -111,22 +109,23 @@ def start_training(
     cmd = (
         f"{python_executable} train.py"
         f" --config-name finetune"
-        f" model=dit-768-12"
+        f" model=dit-1024-16"
+        f" training.run_name=finetune_v3_{config_name}"
         f" dataset.data_dir=data/{config_name}"
         f" dataset.meta_info_path=data/{config_name}/meta_info.json"
-        f" training.wandb_run_name=finetune_ckpt-v2_{config_name}"
+        f" +training.pretrained_path=pretrained/pretrain-v3_dit-1024-16.ckpt" 
         f" training.learning_rate={learning_rate}"
-        f" +model.lognorm=true"
-        f" training.max_steps={max_steps}"
         f" training.weight_decay=0.01"
+        f" training.max_steps={max_steps}"
         f" training.batch_size_per_gpu={batch_size_per_gpu}"
         f" training.save_per_steps={save_per_steps}"
         f" training.test_per_steps={test_per_steps}"
-        f" +model.pretrained_path=pretrained/pretrain-v2-final_dit-768-12_300000steps-lr0.0003.ckpt" 
-        f" +model.whisper_drop_prob=0.2"
-        f" training.eval_cfg_strength={eval_cfg_strength}"
+        f" training.time_schedule=lognorm"
+        f" +training.freeze_adaln_and_tembed=true"
+        f" training.drop_spk_prob=0.0"
+        f" training.logger=tensorboard"
         f" training.save_weights_only={save_weights_only}"
-        f" training.logger={logger}"
+        # f" training.eval_cfg_strength={eval_cfg_strength}"
     )
     
     if resume_train:
@@ -134,13 +133,13 @@ def start_training(
             yield f"恢复训练模型不存在", gr.update(interactive=True), gr.update(interactive=False)
             return
         
-        if logger == "wandb" and wandb_resume_id == "":
-            yield f"恢复训练用wandb ID 为空。", gr.update(interactive=True), gr.update(interactive=False)
-            return
+        # if logger == "wandb" and wandb_resume_id == "":
+            # yield f"恢复训练用wandb ID 为空。", gr.update(interactive=True), gr.update(interactive=False)
+            # return
         
         cmd += f" +training.resume_from_checkpoint={tr_checkpoint}"
-        if logger == "wandb" and wandb_resume_id != "":
-            cmd += f" +training.wandb_resume_id={wandb_resume_id}"
+        # if logger == "wandb" and wandb_resume_id != "":
+            # cmd += f" +training.wandb_resume_id={wandb_resume_id}"
 
     print("run command : \n" + cmd + "\n")
     try:
@@ -287,17 +286,82 @@ def resample_normalize_data(name_project, progress=gr.Progress()):
     else:
         return "所选工程路径不存在"
 
+def slicer_and_resample_audio(audio_path, new_project_name, cur_project_name):
+    
+    if new_project_name == "":
+        new_project_name = cur_project_name
+
+    new_project_path = os.path.join(path_data, new_project_name)
+    if os.path.exists(new_project_path) and len(os.listdir(new_project_path)) > 0:
+        project_list, projects_selelect = get_list_projects()
+        print("工程已存在，并且不为空，请修改新工程名称")
+        return "工程已存在，并且不为空，请修改新工程名称", gr.update(choices=project_list, value=cur_project_name)
+        
+    # 创建工程文件夹    
+    new_speaker_path = os.path.join(new_project_path, new_project_name)
+    os.makedirs(new_speaker_path, exist_ok=True)
+    
+    if not os.path.exists(audio_path):
+        project_list, projects_selelect = get_list_projects()
+        print("音频路径不存在")
+        return "音频路径不存在", gr.update(choices=project_list, value=new_project_name)
+        
+    # 切分音频，把切分好的音频放到speaker目录下
+    print("开始切分音频")
+    cmd = f"{python_executable} slicer.py {audio_path} --out {new_speaker_path} --db_thresh -40 --min_length 8000 --min_interval 500 --max_sil_kept 500"
+    training_process = subprocess.Popen(cmd, shell=True)
+    time.sleep(5)
+    training_process.wait()
+    
+    project_list, projects_selelect = get_list_projects()
+    print("音频切分完成")
+    return "音频切分完成", gr.update(choices=project_list, value=new_project_name)
+
 def prepare_data(name_project):
     path_project = os.path.join(path_data, name_project)
     
-    prepare_data_meta.process(path_project)
-    prepare_mel.process(path_project)
-    prepare_rms.process(path_project)
-    prepare_f0.process(path_project)
-    prepare_cvec.process(path_project)
-    prepare_whisper.process(path_project)
-    combine_features.process(path_project)
+    # runtime\python.exe scripts\prepare_data_meta.py --data-dir %DATA_DIR%
+    # runtime\python.exe scripts\prepare_mel.py --data-dir %DATA_DIR%
+    # runtime\python.exe scripts\prepare_rms.py --data-dir %DATA_DIR%
+    # runtime\python.exe scripts\prepare_f0.py --data-dir %DATA_DIR% --num-workers %NUM_WORKERS_PER_DEVICE%
+    # runtime\python.exe scripts\prepare_cvec.py --data-dir %DATA_DIR% --num-workers %NUM_WORKERS_PER_DEVICE%
     
+    # prepare_data_meta
+    cmd = f"{python_executable} scripts/prepare_data_meta.py --data-dir {path_project}"
+    training_process = subprocess.Popen(cmd, shell=True)
+    time.sleep(5)
+    yield "prepare_data_meta start"
+    training_process.wait()
+    
+    # prepare_mel
+    cmd = f"{python_executable} scripts/prepare_mel.py --data-dir {path_project}"
+    training_process = subprocess.Popen(cmd, shell=True)
+    time.sleep(5)
+    yield "prepare_mel start"
+    training_process.wait()
+    
+    # prepare_rms
+    cmd = f"{python_executable} scripts/prepare_rms.py --data-dir {path_project}"
+    training_process = subprocess.Popen(cmd, shell=True)
+    time.sleep(5)
+    yield "prepare_rms start"
+    training_process.wait()
+    
+    # prepare_f0
+    cmd = f"{python_executable} scripts/prepare_f0.py --data-dir {path_project} --num-workers 1"
+    training_process = subprocess.Popen(cmd, shell=True)
+    time.sleep(5)
+    yield "prepare_f0 start"
+    training_process.wait()
+    
+    # prepare_cvec
+    cmd = f"{python_executable} scripts/prepare_cvec.py --data-dir {path_project} --num-workers 1"
+    training_process = subprocess.Popen(cmd, shell=True)
+    time.sleep(5)
+    yield "prepare_cvec start"
+    training_process.wait()
+    
+    yield "处理完成"
     return "处理完成"
 
 def download_file(url, filename):
@@ -324,9 +388,9 @@ def download_pre_models():
         resume_download=True           # Resume interrupted downloads
     )
     
-    url = "https://huggingface.co/Pur1zumu/RIFT-SVC-pretrained/resolve/main/pretrain-v2-final_dit-768-12_300000steps-lr0.0003.ckpt"
+    url = "https://huggingface.co/Pur1zumu/RIFT-SVC-pretrained/resolve/main/pretrain-v3_dit-1024-16.ckpt"
     
-    filename = "pretrained/pretrain-v2-final_dit-768-12_300000steps-lr0.0003.ckpt"
+    filename = "pretrained/pretrain-v3_dit-1024-16.ckpt"
     if not os.path.exists(filename):
         download_file(url, filename)
     
@@ -441,35 +505,41 @@ with gr.Blocks(title="RIFT-SVC WebUI") as app:
 
     with gr.Tabs():
         with gr.TabItem("预处理数据"):
-            gr.Markdown(
-                """```plaintext    
-     如果数据已经处理过了，这一步可以跳过。
+            # gr.Markdown(
+                # """```plaintext    
+     # 如果数据已经处理过了，这一步可以跳过。
 
-     数据格式:  
-     data/
-        │
-        ├──my_project1/
-        │   │
-        │   ├── speaker/
-        │   │   ├── audio1.wav
-        │   │   └── audio2.wav
-        │   |   ...
-        ├──my_project2/
-            │
-            ├── speaker/
-            │   ├── audio1.wav
-            │   └── audio2.wav
-            |   ...
-     ```"""
-            )
+     # 数据格式:  
+     # data/
+        # │
+        # ├──my_project1/
+        # │   │
+        # │   ├── speaker/
+        # │   │   ├── audio1.wav
+        # │   │   └── audio2.wav
+        # │   |   ...
+        # ├──my_project2/
+            # │
+            # ├── speaker/
+            # │   ├── audio1.wav
+            # │   └── audio2.wav
+            # |   ...
+     # ```"""
+            # )
+            new_project_name = gr.Textbox(label="工程名称:(填写工程名称，在切分数据时会自动创建工程文件夹，如果留空，则使用上面的当前工程)", value="")
+            audio_path = gr.Text(label="音频文件或文件夹:")
             with gr.Row():
-                resample_normalize = gr.Button("重采样及归一化音频数据")
+                # resample_normalize = gr.Button("重采样及归一化音频数据")
+                slicer_audio = gr.Button("切分数据音频数据")
                 prepare = gr.Button("处理数据")
                 download_premodels = gr.Button("下载依赖模型")
             txt_info_prepare = gr.Text(label="Info", value="")
 
-            resample_normalize.click(
-                fn=resample_normalize_data, inputs=[cm_project], outputs=[txt_info_prepare]
+            # resample_normalize.click(
+                # fn=resample_normalize_data, inputs=[cm_project], outputs=[txt_info_prepare]
+            # )
+            slicer_audio.click(
+                fn=slicer_and_resample_audio, inputs=[audio_path, new_project_name, cm_project], outputs=[txt_info_prepare, cm_project]
             )
             prepare.click(
                 fn=prepare_data, inputs=[cm_project], outputs=[txt_info_prepare]
@@ -485,9 +555,9 @@ with gr.Blocks(title="RIFT-SVC WebUI") as app:
 
             def resume_train_change(resume_train):
                 if resume_train:
-                    return gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)
+                    return gr.update(visible=True), gr.update(visible=True)
                 else:
-                    return gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
+                    return gr.update(visible=False), gr.update(visible=False)
                 
             with gr.Row():
                 batch_size_per_gpu = gr.Number(label="Batch Size per GPU", value=32)
@@ -495,20 +565,21 @@ with gr.Blocks(title="RIFT-SVC WebUI") as app:
 
             with gr.Row():
                 save_per_steps = gr.Number(label="Save per steps", value=2000)
+                test_per_steps = gr.Number(label="Test per steps", value=2000)
                 max_steps = gr.Number(label="Max Steps", value=100000)
-                # test_per_steps = gr.Number(label="Test per steps", value=2000)
 
             with gr.Row():
                 # save_per_steps = gr.Number(label="Save per steps", value=2000)
-                test_per_steps = gr.Number(label="Test per steps", value=2000)
-                eval_cfg_strength = gr.Slider(label="Eval cfg strength", value=2.0, minimum=1.0, maximum=5.0, step=1.0)
+                # test_per_steps = gr.Number(label="Test per steps", value=2000)
+                # max_steps = gr.Number(label="Max Steps", value=100000)
+                eval_cfg_strength = gr.Slider(label="Eval cfg strength", value=2.0, minimum=1.0, maximum=5.0, step=1.0, visible=False)
 
             with gr.Row():
                 with gr.Column():
                     save_weights_only = gr.Checkbox(label="模型仅保存权重信息", value=True)
                     resume_train = gr.Checkbox(label="恢复训练", value=False)
                     
-                cd_logger = gr.Radio(label="logger", choices=["None", "wandb"], value="None")
+                # cd_logger = gr.Radio(label="logger", choices=["None", "wandb"], value="None")
                 
                 with gr.Column():
                     start_button = gr.Button("开始训练")
@@ -524,7 +595,7 @@ with gr.Blocks(title="RIFT-SVC WebUI") as app:
                 )
                 tr_checkpoint_refresh = gr.Button("刷新检查点", scale=1, visible=False)
             
-            wandb_resume_id = gr.Text(label="wandb resume id", value="", visible=False)
+            # wandb_resume_id = gr.Text(label="wandb resume id", value="", visible=False)
 
             tr_checkpoint_refresh.click(fn=get_checkpoints_project, inputs=[cm_project], outputs=[tr_checkpoint])
             cm_project.change(fn=get_checkpoints_project, inputs=[cm_project], outputs=[tr_checkpoint])
@@ -532,7 +603,7 @@ with gr.Blocks(title="RIFT-SVC WebUI") as app:
             resume_train.change(
                 fn=resume_train_change,
                 inputs=[resume_train],
-                outputs=[tr_checkpoint, tr_checkpoint_refresh, wandb_resume_id],
+                outputs=[tr_checkpoint, tr_checkpoint_refresh],
             )
             
             start_button.click(
@@ -546,10 +617,8 @@ with gr.Blocks(title="RIFT-SVC WebUI") as app:
                     test_per_steps,
                     eval_cfg_strength,
                     save_weights_only,
-                    cd_logger,
                     resume_train,
                     tr_checkpoint,
-                    wandb_resume_id,
                 ],
                 outputs=[txt_info_train, start_button, stop_button],
             )

@@ -219,7 +219,7 @@ def process_audio_file(audio_file, out_dir, args):
     
     try:
         logger.info(f"Loading audio file: {audio_file}")
-        audio, sr = librosa.load(str(audio_file), sr=None, mono=False)
+        audio, sr = librosa.load(str(audio_file), sr=44100, mono=False)
         
         slicer = Slicer(
             sr=sr,
@@ -241,7 +241,7 @@ def process_audio_file(audio_file, out_dir, args):
                 chunk = chunk.T
             
             output_file = os.path.join(out_dir, f'{file_basename}_{i}_pos_{pos}.wav')
-            soundfile.write(output_file, chunk, sr)
+            soundfile.write(output_file, chunk, sr, 'PCM_24')
         
         logger.info(f"Finished processing {audio_file}")
     except Exception as e:
