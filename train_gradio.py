@@ -28,17 +28,6 @@ python_executable = sys.executable or "python"
 
 os.chdir(os.path.dirname(__file__))
 
-# from scripts import resample_normalize_audios
-# from scripts import prepare_data_meta
-# from scripts import prepare_mel
-# from scripts import prepare_rms
-# from scripts import prepare_f0
-# from scripts import prepare_cvec
-# from scripts import prepare_whisper
-# from scripts import combine_features
-
-# import infer_api
-
 
 path_data = os.path.dirname(__file__) + "/data"
 path_project_ckpts =  os.path.dirname(__file__) + "/ckpts"
@@ -133,13 +122,7 @@ def start_training(
             yield f"恢复训练模型不存在", gr.update(interactive=True), gr.update(interactive=False)
             return
         
-        # if logger == "wandb" and wandb_resume_id == "":
-            # yield f"恢复训练用wandb ID 为空。", gr.update(interactive=True), gr.update(interactive=False)
-            # return
-        
         cmd += f" +training.resume_from_checkpoint={tr_checkpoint}"
-        # if logger == "wandb" and wandb_resume_id != "":
-            # cmd += f" +training.wandb_resume_id={wandb_resume_id}"
 
     print("run command : \n" + cmd + "\n")
     try:
@@ -281,7 +264,7 @@ def resample_normalize_data(name_project, progress=gr.Progress()):
     path_project = os.path.join(path_data, name_project)
     
     if os.path.exists(path_project):
-        resample_normalize_audios.resample_normalize_audios(path_project, target_sample_rate=44100, target_loudness=-18.0)
+        # resample_normalize_audios.resample_normalize_audios(path_project, target_sample_rate=44100, target_loudness=-18.0)
         return "数据重采样及归一化完成"
     else:
         return "所选工程路径不存在"
@@ -380,7 +363,7 @@ def download_file(url, filename):
 
 def download_pre_models():
     snapshot_download(
-        repo_id="Jack202410/SVC-modules",
+        repo_id="Pur1zumu/RIFT-SVC-modules",
         local_dir='pretrained',
         local_dir_use_symlinks=False,  # Don't use symlinks
         local_files_only=False,        # Allow downloading new files
@@ -454,7 +437,6 @@ def infer(cm_checkpoint, nfe_step, cfg_strength, input_audio):
 def get_checkpoints_project(project_name, is_gradio=True):
     if project_name is None:
         return [], ""
-    # project_name = project_name.replace("_pinyin", "").replace("_char", "")
 
     if os.path.isdir(path_project_ckpts):
         
